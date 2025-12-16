@@ -1,4 +1,13 @@
 import { useState, useEffect } from 'react'
+import { ProofData, UltraHonkBackend } from '@aztec/bb.js';
+import { Noir } from '@noir-lang/noir_js';
+import initNoirC from '@noir-lang/noirc_abi';
+import initACVM from '@noir-lang/acvm_js';
+import acvm from '@noir-lang/acvm_js/web/acvm_js_bg.wasm?url';
+import noirc from '@noir-lang/noirc_abi/web/noirc_abi_wasm_bg.wasm?url';
+import circuit from '../circuit/target/circuit.json';
+// Initialize WASM modules
+await Promise.all([initACVM(fetch(acvm)), initNoirC(fetch(noirc))]);
 
 const API_URL = 'http://localhost:3000'
 
@@ -30,6 +39,9 @@ interface SignedProof {
   publicKey: string
 }
 
+const noir = new Noir(circuit);
+const backend = new UltraHonkBackend(circuit.bytecode);
+
 function App() {
   const [user, setUser] = useState<GitHubUser | null>(null)
   const [repos, setRepos] = useState<Repo[]>([])
@@ -38,6 +50,7 @@ function App() {
   const [commitStats, setCommitStats] = useState<{ count: number; since: string } | null>(null)
   const [signedProof, setSignedProof] = useState<SignedProof | null>(null)
   const [generatingProof, setGeneratingProof] = useState(false)
+  const [zkProof, setZkProof] = useState<ProofData | null>(null)
 
   useEffect(() => {
     // Check for OAuth errors in URL
@@ -113,7 +126,15 @@ function App() {
       const res = await fetch(`${API_URL}/api/stats/commits/proof`, { credentials: 'include' })
       if (res.ok) {
         const proof = await res.json()
+        let commits = proof.payload.commitCount;
+        const { witness } = await noir.execute({ commits });
+        console.log(commits);
+        console.log(witness);
+        console.log("generating proof");
+        const zk = await backend.generateProof(witness);
+        console.log("generated proof:",zk.proof);
         setSignedProof(proof)
+        setZkProof(zk);
       } else {
         setError('Failed to generate proof')
       }
@@ -224,6 +245,32 @@ function App() {
               <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
                 This proof is signed by the application server (ECDSA P-256).
                 Verifiers can validate this against the application's public key at /api/public-key.
+              </p>
+            </div>
+          )}
+
+          {zkProof && (
+            <div style={{
+              padding: '15px',
+              backgroundColor: '#e8f5e9',
+              borderRadius: '8px',
+              marginBottom: '20px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong>ZK Proof</strong>
+              </div>
+              <pre style={{
+                backgroundColor: '#fff',
+                padding: '10px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                maxHeight: '200px',
+              }}>
+                {zkProof.proof}
+              </pre>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                This ZK proof has been generated here!
               </p>
             </div>
           )}
