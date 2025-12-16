@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getOrCreateKeypair, signCommitStats, SignedProof } from './crypto'
 
 const API_URL = 'http://localhost:3000'
 
@@ -24,6 +25,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [commitStats, setCommitStats] = useState<{ count: number; since: string } | null>(null)
+  const [signedProof, setSignedProof] = useState<SignedProof | null>(null)
+  const [signing, setSigning] = useState(false)
 
   useEffect(() => {
     // Check for OAuth errors in URL
@@ -90,6 +93,35 @@ function App() {
     setUser(null)
     setRepos([])
     setCommitStats(null)
+    setSignedProof(null)
+  }
+
+  const handleGenerateProof = async () => {
+    if (!user || !commitStats) return
+
+    setSigning(true)
+    try {
+      const { privateKey, publicKeyBase64 } = await getOrCreateKeypair()
+      const proof = await signCommitStats(
+        privateKey,
+        publicKeyBase64,
+        user.login,
+        commitStats.count,
+        commitStats.since
+      )
+      setSignedProof(proof)
+    } catch (err) {
+      console.error('Failed to generate proof:', err)
+      setError('Failed to generate signed proof')
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  const handleCopyProof = () => {
+    if (signedProof) {
+      navigator.clipboard.writeText(JSON.stringify(signedProof, null, 2))
+    }
   }
 
   if (loading) {
@@ -137,10 +169,57 @@ function App() {
             <div style={{ fontSize: '36px', fontWeight: 'bold' }}>
               {commitStats ? commitStats.count.toLocaleString() : '...'}
             </div>
-            <div style={{ color: '#666' }}>
+            <div style={{ color: '#666', marginBottom: '15px' }}>
               commits in the last 3 months
             </div>
+            <button
+              onClick={handleGenerateProof}
+              disabled={signing || !commitStats}
+              style={{
+                padding: '10px 20px',
+                cursor: signing ? 'wait' : 'pointer',
+                backgroundColor: '#0066cc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+              }}
+            >
+              {signing ? 'Signing...' : 'Generate Signed Proof'}
+            </button>
           </div>
+
+          {signedProof && (
+            <div style={{
+              padding: '15px',
+              backgroundColor: '#e8f5e9',
+              borderRadius: '8px',
+              marginBottom: '20px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong>Signed Proof</strong>
+                <button
+                  onClick={handleCopyProof}
+                  style={{ padding: '5px 10px', cursor: 'pointer' }}
+                >
+                  Copy to Clipboard
+                </button>
+              </div>
+              <pre style={{
+                backgroundColor: '#fff',
+                padding: '10px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                maxHeight: '200px',
+              }}>
+                {JSON.stringify(signedProof, null, 2)}
+              </pre>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                This proof is signed with your local keypair (ECDSA P-256).
+                Share this with the applicant app or use it as input to a verification circuit.
+              </p>
+            </div>
+          )}
 
           <h2>Your Repositories</h2>
           {repos.length === 0 ? (
