@@ -1,6 +1,7 @@
 import express from 'express';
 import session from 'express-session';
 import cors from 'cors';
+import { initializeKeypair, signCommitStats, getPublicKey } from './crypto.js';
 
 // Extend session type to include our custom fields
 declare module 'express-session' {
@@ -203,6 +204,54 @@ app.get('/api/stats/commits', async (req, res) => {
   }
 });
 
+/**
+ * Get a signed proof of the user's commit count.
+ * The proof is signed by the application's private key.
+ * Verifiers can check the signature against the application's public key.
+ */
+app.get('/api/stats/commits/proof', async (req, res) => {
+  if (!req.session.accessToken || !req.session.githubUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { login: username, id: userId } = req.session.githubUser;
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const since = threeMonthsAgo.toISOString().split('T')[0];
+
+  try {
+    // Fetch commit count from GitHub
+    const response = await fetch(
+      `https://api.github.com/search/commits?q=author:${username}+committer-date:>=${since}&per_page=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${req.session.accessToken}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      }
+    );
+
+    const data = await response.json();
+    const commitCount = data.total_count || 0;
+
+    // Sign the payload with application key
+    const signedProof = signCommitStats(username, userId, commitCount, since);
+
+    res.json(signedProof);
+  } catch (error) {
+    console.error('Proof generation error:', error);
+    res.status(500).json({ error: 'Failed to generate proof' });
+  }
+});
+
+/**
+ * Get the application's public key.
+ * Verifiers use this to validate signed proofs.
+ */
+app.get('/api/public-key', (req, res) => {
+  res.json({ publicKey: getPublicKey() });
+});
+
 // Get commits for a specific repo
 app.get('/api/repos/:owner/:repo/commits', async (req, res) => {
   if (!req.session.accessToken) {
@@ -229,6 +278,9 @@ app.get('/api/repos/:owner/:repo/commits', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch commits' });
   }
 });
+
+// Initialize application keypair before starting server
+initializeKeypair();
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);

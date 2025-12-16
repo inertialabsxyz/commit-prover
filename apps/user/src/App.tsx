@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { getOrCreateKeypair, signCommitStats, SignedProof } from './crypto'
 
 const API_URL = 'http://localhost:3000'
 
@@ -19,6 +18,18 @@ interface Repo {
   updated_at: string
 }
 
+interface SignedProof {
+  payload: {
+    username: string
+    userId: number
+    commitCount: number
+    since: string
+    timestamp: number
+  }
+  signature: string
+  publicKey: string
+}
+
 function App() {
   const [user, setUser] = useState<GitHubUser | null>(null)
   const [repos, setRepos] = useState<Repo[]>([])
@@ -26,7 +37,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [commitStats, setCommitStats] = useState<{ count: number; since: string } | null>(null)
   const [signedProof, setSignedProof] = useState<SignedProof | null>(null)
-  const [signing, setSigning] = useState(false)
+  const [generatingProof, setGeneratingProof] = useState(false)
 
   useEffect(() => {
     // Check for OAuth errors in URL
@@ -97,24 +108,20 @@ function App() {
   }
 
   const handleGenerateProof = async () => {
-    if (!user || !commitStats) return
-
-    setSigning(true)
+    setGeneratingProof(true)
     try {
-      const { privateKey, publicKeyBase64 } = await getOrCreateKeypair()
-      const proof = await signCommitStats(
-        privateKey,
-        publicKeyBase64,
-        user.login,
-        commitStats.count,
-        commitStats.since
-      )
-      setSignedProof(proof)
+      const res = await fetch(`${API_URL}/api/stats/commits/proof`, { credentials: 'include' })
+      if (res.ok) {
+        const proof = await res.json()
+        setSignedProof(proof)
+      } else {
+        setError('Failed to generate proof')
+      }
     } catch (err) {
       console.error('Failed to generate proof:', err)
       setError('Failed to generate signed proof')
     } finally {
-      setSigning(false)
+      setGeneratingProof(false)
     }
   }
 
@@ -174,17 +181,17 @@ function App() {
             </div>
             <button
               onClick={handleGenerateProof}
-              disabled={signing || !commitStats}
+              disabled={generatingProof || !commitStats}
               style={{
                 padding: '10px 20px',
-                cursor: signing ? 'wait' : 'pointer',
+                cursor: generatingProof ? 'wait' : 'pointer',
                 backgroundColor: '#0066cc',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
               }}
             >
-              {signing ? 'Signing...' : 'Generate Signed Proof'}
+              {generatingProof ? 'Generating...' : 'Generate Signed Proof'}
             </button>
           </div>
 
@@ -196,7 +203,7 @@ function App() {
               marginBottom: '20px',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <strong>Signed Proof</strong>
+                <strong>Signed Proof (Application Attested)</strong>
                 <button
                   onClick={handleCopyProof}
                   style={{ padding: '5px 10px', cursor: 'pointer' }}
@@ -215,8 +222,8 @@ function App() {
                 {JSON.stringify(signedProof, null, 2)}
               </pre>
               <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                This proof is signed with your local keypair (ECDSA P-256).
-                Share this with the applicant app or use it as input to a verification circuit.
+                This proof is signed by the application server (ECDSA P-256).
+                Verifiers can validate this against the application's public key at /api/public-key.
               </p>
             </div>
           )}
