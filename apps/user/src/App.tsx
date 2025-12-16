@@ -23,6 +23,7 @@ function App() {
   const [repos, setRepos] = useState<Repo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [commitStats, setCommitStats] = useState<{ count: number; since: string } | null>(null)
 
   useEffect(() => {
     // Check for OAuth errors in URL
@@ -44,6 +45,7 @@ function App() {
         const data = await res.json()
         setUser(data.user)
         fetchRepos()
+        fetchCommitStats()
       }
     } catch (err) {
       console.error('Failed to fetch user:', err)
@@ -64,6 +66,18 @@ function App() {
     }
   }
 
+  const fetchCommitStats = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/stats/commits`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setCommitStats({ count: data.commitCount, since: data.since })
+      }
+    } catch (err) {
+      console.error('Failed to fetch commit stats:', err)
+    }
+  }
+
   const handleLogin = () => {
     window.location.href = `${API_URL}/auth/github`
   }
@@ -75,6 +89,7 @@ function App() {
     })
     setUser(null)
     setRepos([])
+    setCommitStats(null)
   }
 
   if (loading) {
@@ -110,6 +125,21 @@ function App() {
             <button onClick={handleLogout} style={{ marginLeft: 'auto', cursor: 'pointer' }}>
               Logout
             </button>
+          </div>
+
+          <div style={{
+            padding: '20px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '36px', fontWeight: 'bold' }}>
+              {commitStats ? commitStats.count.toLocaleString() : '...'}
+            </div>
+            <div style={{ color: '#666' }}>
+              commits in the last 3 months
+            </div>
           </div>
 
           <h2>Your Repositories</h2>

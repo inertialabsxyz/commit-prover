@@ -150,6 +150,40 @@ app.get('/api/repos', async (req, res) => {
   }
 });
 
+// Get commit count for user over last 3 months
+app.get('/api/stats/commits', async (req, res) => {
+  if (!req.session.accessToken || !req.session.githubUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const username = req.session.githubUser.login;
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const since = threeMonthsAgo.toISOString().split('T')[0];
+
+  try {
+    // Use GitHub Search API to count commits by user in last 3 months
+    const response = await fetch(
+      `https://api.github.com/search/commits?q=author:${username}+committer-date:>=${since}&per_page=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${req.session.accessToken}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      }
+    );
+
+    const data = await response.json();
+    res.json({
+      commitCount: data.total_count || 0,
+      since,
+    });
+  } catch (error) {
+    console.error('Commit stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch commit stats' });
+  }
+});
+
 // Get commits for a specific repo
 app.get('/api/repos/:owner/:repo/commits', async (req, res) => {
   if (!req.session.accessToken) {
