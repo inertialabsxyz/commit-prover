@@ -152,6 +152,36 @@ function App() {
     }
   }
 
+  const handleCopyZkProof = () => {
+    if (zkProof) {
+      navigator.clipboard.writeText(JSON.stringify(zkProof, null, 2))
+    }
+  }
+
+  const handleDownloadZkProof = () => {
+    if (!zkProof) return
+
+    // Convert proof to hex string for readability
+    const proofHex = Array.from(zkProof.proof)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    const proofData = {
+      proof: proofHex,
+      publicInputs: zkProof.publicInputs,
+    }
+
+    const blob = new Blob([JSON.stringify(proofData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `commit-proof-${user?.login || 'unknown'}-${Date.now()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) {
     return <div>Loading...</div>
   }
@@ -257,7 +287,44 @@ function App() {
               marginBottom: '20px',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <strong>ZK Proof</strong>
+                <strong>ZK Proof (Noir UltraHonk)</strong>
+              </div>
+              <div style={{ marginBottom: '15px', fontSize: '14px' }}>
+                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ color: '#666' }}>Commits proven: </span>
+                    <strong>{signedProof?.payload.commitCount}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#666' }}>Proof size: </span>
+                    <strong>{zkProof.proof.length.toLocaleString()} bytes</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#666' }}>Public inputs: </span>
+                    <strong>{zkProof.publicInputs.length}</strong>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <button
+                  onClick={handleCopyZkProof}
+                  style={{ padding: '5px 10px', cursor: 'pointer' }}
+                >
+                  Copy to Clipboard
+                </button>
+                <button
+                  onClick={handleDownloadZkProof}
+                  style={{
+                    padding: '5px 10px',
+                    cursor: 'pointer',
+                    backgroundColor: '#0066cc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                  }}
+                >
+                  Download Proof
+                </button>
               </div>
               <pre style={{
                 backgroundColor: '#fff',
