@@ -150,7 +150,26 @@ app.get('/api/repos', async (req, res) => {
   }
 });
 
-// Get commit count for user over last 3 months
+/**
+ * Get commit count for the authenticated user over the last 3 months.
+ *
+ * Uses GitHub's Search API to count commits where the user is the author.
+ *
+ * What this returns:
+ * - Commits where the user is the author (matched by GitHub username)
+ * - Across all public repositories on GitHub
+ * - Plus private repositories the user has access to (via their OAuth token)
+ *
+ * Limitations:
+ * - Only indexed commits: GitHub's Search API only indexes commits from repositories
+ *   that have been indexed. Very new repos or commits may have a slight delay.
+ * - Author matching: Matches by GitHub username, not email. Commits made with an
+ *   email not linked to the user's GitHub account won't be counted.
+ * - 1,000 result cap: Search API returns max 1,000 results, but total_count should
+ *   still reflect the true count (up to GitHub's internal limits).
+ * - Rate limiting: Search API has stricter rate limits (30 requests/minute authenticated).
+ * - Forks: Commits to forks are only included if the fork has more stars than the parent.
+ */
 app.get('/api/stats/commits', async (req, res) => {
   if (!req.session.accessToken || !req.session.githubUser) {
     return res.status(401).json({ error: 'Not authenticated' });
