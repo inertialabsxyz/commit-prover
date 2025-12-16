@@ -1,0 +1,14 @@
+{
+  "name": "commit-prover",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:user": "npm run dev --workspace=apps/user",
+    "dev:applicant": "npm run dev --workspace=apps/applicant",
+    "build:user": "npm run build --workspace=apps/user",
+    "build:applicant": "npm run build --workspace=apps/applicant",
+    "build": "npm run build --workspaces"
+  }
+}
