@@ -7,8 +7,10 @@
   "scripts": {
     "dev:user": "npm run dev --workspace=apps/user",
     "dev:applicant": "npm run dev --workspace=apps/applicant",
+    "dev:backend": "npm run dev --workspace=apps/backend",
     "build:user": "npm run build --workspace=apps/user",
     "build:applicant": "npm run build --workspace=apps/applicant",
+    "build:backend": "npm run build --workspace=apps/backend",
     "build": "npm run build --workspaces"
   }
 }
