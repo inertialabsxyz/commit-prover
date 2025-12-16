@@ -333,8 +333,14 @@ function App() {
                 overflow: 'auto',
                 fontSize: '12px',
                 maxHeight: '200px',
+                wordBreak: 'break-all',
+                whiteSpace: 'pre-wrap',
               }}>
-                {zkProof.proof}
+                {Array.from(zkProof.proof)
+                  .map(b => b.toString(16).padStart(2, '0'))
+                  .join('')
+                  .match(/.{1,64}/g)
+                  ?.join('\n')}
               </pre>
               <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
                 This ZK proof has been generated here!
