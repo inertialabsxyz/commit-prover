@@ -80,7 +80,7 @@ export function signCommitStats(
   };
 
   // Create canonical JSON string for signing
-  const message = JSON.stringify(payload);
+  const message = JSON.stringify(payload, Object.keys(payload as any).sort());
 
   // Sign with ECDSA using SHA-256
   const sign = crypto.createSign('SHA256');
@@ -102,7 +102,7 @@ export function signCommitStats(
  */
 export function verifySignedProof(proof: SignedProof): boolean {
   try {
-    const message = JSON.stringify(proof.payload);
+    const message = JSON.stringify(proof.payload, Object.keys(proof.payload as any).sort());
 
     const verify = crypto.createVerify('SHA256');
     verify.update(message);
