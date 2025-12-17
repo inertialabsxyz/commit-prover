@@ -1,4 +1,16 @@
 import { useState, useRef } from 'react'
+import { ProofData, UltraHonkBackend } from '@aztec/bb.js';
+import { Noir } from '@noir-lang/noir_js';
+import initNoirC from '@noir-lang/noirc_abi';
+import initACVM from '@noir-lang/acvm_js';
+import acvm from '@noir-lang/acvm_js/web/acvm_js_bg.wasm?url';
+import noirc from '@noir-lang/noirc_abi/web/noirc_abi_wasm_bg.wasm?url';
+import circuit from '../../user/circuit/target/circuit.json';
+// Initialize WASM modules
+await Promise.all([initACVM(fetch(acvm)), initNoirC(fetch(noirc))]);
+
+const noir = new Noir(circuit);
+const backend = new UltraHonkBackend(circuit.bytecode);
 
 interface Job {
   id: number
@@ -89,9 +101,21 @@ function JobCard({ job }: JobCardProps) {
 
       // Check that the proof has expected structure
       if (proofData.proof && proofData.publicInputs) {
-        // Simulate verification delay
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        setStatus('accepted')
+        console.log("proof input correct")
+        // Convert hex string back to Uint8Array
+        const proofBytes = Uint8Array.from(
+          proofData.proof.match(/.{2}/g)!.map((b: string) => parseInt(b, 16))
+        )
+        const proofForVerification: ProofData = {
+          proof: proofBytes,
+          publicInputs: proofData.publicInputs,
+        }
+        if (await backend.verifyProof(proofForVerification)) {
+          setStatus('accepted')
+        } else {
+          console.log("backend rejected")
+          setStatus('rejected')
+        }
       } else {
         setStatus('rejected')
       }
