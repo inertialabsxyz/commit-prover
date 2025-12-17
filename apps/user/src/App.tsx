@@ -120,6 +120,96 @@ function App() {
     setSignedProof(null)
   }
 
+  function pemToArrayBuffer(pem: string): ArrayBuffer {
+    const b64 = pem
+      .replace(/-----BEGIN PUBLIC KEY-----/g, "")
+      .replace(/-----END PUBLIC KEY-----/g, "")
+      .replace(/\s+/g, "");
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return bytes.buffer;
+  }
+
+  async function spkiPemToXY(
+    publicKeyPem: string,
+    namedCurve: "P-256" | "P-384" | "P-521" = "P-256"
+  ): Promise<{ x: Uint8Array; y: Uint8Array }> {
+    const spkiDer = pemToArrayBuffer(publicKeyPem);
+
+    // Import SPKI to a CryptoKey
+    const key = await crypto.subtle.importKey(
+      "spki",
+      spkiDer,
+      { name: "ECDSA", namedCurve },
+      true,
+      ["verify"]
+    );
+
+    // Export the raw EC point: 0x04 || X || Y (uncompressed)
+    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", key));
+
+    if (raw[0] !== 0x04) throw new Error("Expected uncompressed EC point");
+
+    // Coordinate sizes depend on curve
+    const coordLen =
+      namedCurve === "P-256" ? 32 :
+      namedCurve === "P-384" ? 48 :
+      namedCurve === "P-521" ? 66 :
+      (() => { throw new Error("Unsupported curve"); })();
+
+    if (raw.length !== 1 + 2 * coordLen) {
+      throw new Error(`Unexpected raw key length: ${raw.length}`);
+    }
+
+    const x = raw.slice(1, 1 + coordLen);
+    const y = raw.slice(1 + coordLen, 1 + 2 * coordLen);
+
+    return { x, y };
+  }
+
+  function hexToBytes(hex: string): Uint8Array {
+    if (hex.length % 2 !== 0) throw new Error("Invalid hex");
+    return Uint8Array.from(
+      hex.match(/.{2}/g)!.map(b => parseInt(b, 16))
+    );
+  }
+
+  function derSigToRS(der: Uint8Array): Uint8Array {
+    let offset = 0;
+
+    if (der[offset++] !== 0x30) {
+      throw new Error("Expected DER sequence");
+    }
+
+    offset++; // total length (not needed)
+
+    if (der[offset++] !== 0x02) {
+      throw new Error("Expected INTEGER (r)");
+    }
+
+    let rLen = der[offset++];
+    let r = der.slice(offset, offset + rLen);
+    offset += rLen;
+
+    if (der[offset++] !== 0x02) {
+      throw new Error("Expected INTEGER (s)");
+    }
+
+    let sLen = der[offset++];
+    let s = der.slice(offset, offset + sLen);
+
+    // Remove leading zero padding if present
+    if (r.length > 32) r = r.slice(r.length - 32);
+    if (s.length > 32) s = s.slice(s.length - 32);
+
+    // Left-pad with zeros if needed
+    const r32 = new Uint8Array(32);
+    const s32 = new Uint8Array(32);
+    r32.set(r, 32 - r.length);
+    s32.set(s, 32 - s.length);
+
+    return new Uint8Array([...r32, ...s32]);
+  }
+
   const handleGenerateProof = async () => {
     setGeneratingProof(true)
     try {
