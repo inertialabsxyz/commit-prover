@@ -177,9 +177,9 @@ app.get('/api/stats/commits', async (req, res) => {
   }
 
   const username = req.session.githubUser.login;
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  const since = threeMonthsAgo.toISOString().split('T')[0];
+  const since = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
 
   try {
     // Use GitHub Search API to count commits by user in last 3 months
@@ -215,9 +215,9 @@ app.get('/api/stats/commits/proof', async (req, res) => {
   }
 
   const { login: username, id: userId } = req.session.githubUser;
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  const since = threeMonthsAgo.toISOString().split('T')[0];
+  const since = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
 
   try {
     // Fetch commit count from GitHub
