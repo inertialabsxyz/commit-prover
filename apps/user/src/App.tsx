@@ -216,13 +216,18 @@ function App() {
       const res = await fetch(`${API_URL}/api/stats/commits/proof`, { credentials: 'include' })
       if (res.ok) {
         const proof = await res.json()
-        let commits = proof.payload.commitCount;
-        const { witness } = await noir.execute({ commits });
-        console.log(commits);
-        console.log(witness);
-        console.log("generating proof");
+        const commits = proof.payload.commitCount;
+        const now = Math.floor(Date.now() / 1000);
+        const timestamp = Math.floor(new Date(proof.payload.since).getTime() / 1000);
+        const message = JSON.stringify(proof.payload, Object.keys(proof.payload as any).sort());
+        const data = new TextEncoder().encode(message);
+        const hashed_message = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)));
+        const pub_key = await spkiPemToXY(proof.publicKey, "P-256");
+        const pub_key_x = Array.from(pub_key.x);
+        const pub_key_y  = Array.from(pub_key.y);
+        const signature = Array.from(derSigToRS(hexToBytes(proof.signature)));
+        const { witness } = await noir.execute({ commits, now, timestamp, hashed_message, pub_key_x, pub_key_y, signature });
         const zk = await backend.generateProof(witness);
-        console.log("generated proof:",zk.proof);
         setSignedProof(proof)
         setZkProof(zk);
       } else {
@@ -318,7 +323,7 @@ function App() {
               {commitStats ? commitStats.count.toLocaleString() : '...'}
             </div>
             <div style={{ color: '#666', marginBottom: '15px' }}>
-              commits in the last 3 months
+              commits in the last 100 days
             </div>
             <button
               onClick={handleGenerateProof}
